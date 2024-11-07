@@ -25,15 +25,22 @@ else
   # e.g. config_attribute=config.system.build.toplevel
   config_attribute="config.${rest#*.config.}"
 
+  flake_dir=$(pwd)
+  while [[ "$flake_dir" != "/" ]]; do
+    if [[ -f "$flake_dir/flake.nix" ]]; then
+      break
+    fi
+    flake_dir=$(dirname "$flake_dir")
+  done
   # grab flake nar from error message
-  flake_rel="$(echo "${attribute}" | cut -d "#" -f 1)"
+  # flake_rel="$(echo "${attribute}" | cut -d "#" -f 1)"
   # e.g. flake_rel="."
-  flake_dir="$(readlink -f "${flake_rel}")"
-  flake_nar="$(nix build --expr "builtins.getFlake ''git+file://${flake_dir}?narHash=sha256-0000000000000000000000000000000000000000000=''" 2>&1 | grep -Po "(?<=got ')sha256-[^']*(?=')")"
+  # flake_dir="$(readlink -f "${flake_rel}")"
+  # flake_nar="$(nix build --expr "builtins.getFlake ''git+file://${flake_dir}?narHash=sha256-0000000000000000000000000000000000000000000=''" 2>&1 | grep -Po "(?<=got ')sha256-[^']*(?=')")"
   # substitute variables into the template
-  nix_expr="(builtins.getFlake ''file://${flake_dir}/flake.nix?narHash=${flake_nar}'').${config_path}.extendModules { specialArgs = builtins.fromJSON ''${special_args}''; }"
+  nix_expr="(builtins.getFlake ''git+file://${flake_dir}'').${config_path}.extendModules { specialArgs = builtins.fromJSON ''${special_args}''; }"
   # inject `special_args` into nixos config's `specialArgs`
   # shellcheck disable=SC2086
-  out=$(nix build --no-link --json ${options} --expr "${nix_expr}" "${config_attribute}")
+  out=$(nix build --no-link --json ${options} --expr "${nix_expr}" "${config_attribute}" --impure)
 fi
 printf '%s' "$out" | jq -c '.[].outputs'
